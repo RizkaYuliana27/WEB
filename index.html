@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RBD – Boiler Feed Water Pump (Interactive)</title>
+<style>
+  :root {
+    --blue:#2a75bb;
+    --ink:#0b0b0c;
+    --line:#2f2f2f;
+    --paper:#f7f7f8;
+  }
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    font-family:Segoe UI,Arial,Helvetica,sans-serif;
+    overflow-x:auto; overflow-y:auto;
+  }
+  .stage{
+    position:relative;
+    width:3200px;
+    height:860px;
+  }
+  svg.wires{
+    position:absolute;
+    inset:0;
+    width:100%; height:100%;
+    pointer-events:none;
+  }
+  .wire{ stroke:var(--line); stroke-width:3; fill:none; }
+  .wire.faint{ stroke-opacity:.35 }
+  .node{
+    position:absolute;
+    width:140px; height:86px;
+    transform:translate(-70px,-43px);
+    cursor:pointer; user-select:none;
+  }
+  .node.hidden{ display:none }
+  .node.left .card{ background:#3498db33 }  /* biru transparan */
+  .node.right .card{ background:#e74c3c33 } /* merah transparan */
+  .card{
+    position:absolute; inset:0;
+    background:#fff; border:2px solid #222; border-radius:8px;
+    transition:background .3s;
+  }
+  .cap{
+    position:absolute;
+    left:-2px; right:-2px; top:-26px; height:26px;
+    background:#444; border:2px solid #222; border-bottom:0; border-radius:8px 8px 0 0;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:600; font-size:12px; letter-spacing:.2px;
+    transition:color .3s;
+  }
+  .cap.left{ color:#3498db }
+  .cap.right{ color:#e74c3c }
+  .mat{
+    position:absolute; inset:0;
+    display:grid; grid-template-columns:18px 1fr;
+    align-content:center; row-gap:2px;
+    padding:10px 8px 8px 8px;
+    font-size:12px;
+  }
+.node.end-node {
+  opacity: 0;           /* transparan penuh */
+  pointer-events: none; /* tidak bisa diklik */
+}
+  .lbl{ color:#000; font-weight:600; text-align:center }
+  .v{ text-align:center; font-variant-numeric:tabular-nums }
+  .node.selected .cap{ background:#2ecc71; color:#fff !important }
+  .banner{
+    position:absolute;
+    left:24px; right:24px; top:24px; height:24px;
+    background:#1f9a48; border-radius:4px;
+    color:#fff; display:flex; align-items:center; padding:0 10px;
+    font-weight:700; font-size:12px; letter-spacing:.3px;
+  }
+  .legend{ position:absolute; left:36px; top:60px; font-size:12px; color:#111; }
+  @media (max-width:1100px){ .stage{ height:960px } }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="banner">BOILER FEED WATER PUMP SYSTEM UNIT 2</div>
+  <div class="legend">RELIABILITY : 100% &nbsp;&nbsp; AVAILABILITY : 100%</div>
+  <svg class="wires" id="wires" viewBox="0 0 3200 860" preserveAspectRatio="none"></svg>
+</div>
+
+<script>
+function n(id,label,x,y){ return {id,label,x,y,R:"100.0%",A:"100.0%"} }
+function e(from,to){ return {from,to} }
+
+const NODES = [
+  n("A0","Start",-100,500),
+  n("B01","7FW-P-200",360,300),
+  n("B02","7FW-RV-200",540,300),
+  n("B03","7FW-CLR-205",720,300),
+  n("B04","7FW-CLR-225",900,300),
+
+  n("P1","7FW-P-253",1080,200),
+  n("P2","7FW-P-254",1080,400),
+
+  n("B07","7FW-P-252",1260,300),
+  n("B08","7FW-CLR-235",1440,300),
+  n("B09","7FW-CLR-295",1620,300),
+
+  n("T1","7FW-TV-330A",1860,200),
+  n("T2","7FW-TV-330B",1860,400),
+
+  n("H1","7FW-P-100A",800,500),
+  n("H2","7FW-P-100B",800,650),
+
+  n("K1","7FW-TV-325A",2250,160),
+  n("K2","7FW-TV-325B",2250,330),
+
+  n("S1","7FW-TV-338A",2500,450),
+  n("S2","7FW-TV-338C",2500,590),
+  n("S3","7FW-TV-338B",2500,720),
+  n("S4","7FW-TV-338D",2500,850),
+
+  n("ED","END",3000,500),
+];
+
+const EDGES = [
+  e("A0","B01"), e("B01","B02"), e("B02","B03"), e("B03","B04"),
+  e("B04","P1"), e("B04","P2"),
+  e("P1","B07"), e("P2","B07"),
+  e("B07","B08"), e("B08","B09"),
+  e("A0","H1"), e("A0","H2"), e("T2","H1"), e("T2","H2"),
+  e("B09","T1"),
+  e("B09","T2"),
+  e("T2","K2"),
+  e("T1","K1"),
+  e("S1","ED"), e("S2","ED"), e("S3","ED"), e("S4","ED"),
+  e("K1","ED"), e("K2","ED"),
+  e("T1","S1"), e("T1","S2"), e("T1","S3"), e("T1","S4"),
+];
+
+const GROUPS = [
+  {type:"single", upstream:["B01"], downstream:["B02","B03","B04"], exclude:["T1","T2"]},
+  {type:"single", upstream:["B02"], downstream:["B03","B04","P1"], exclude:["T1","T2"]},
+  {type:"single", upstream:["B03"], downstream:["B04","P1","P2"], exclude:["T1","T2"]},
+  {type:"single", upstream:["B04"], downstream:["P1","P2","P1"], exclude:["T1","T2"]},
+  {type:"dual", upstream:["P1","P2"], downstream:["B07","B08","B09"], exclude:["T1","T2"]},
+  {type:"single", upstream:["B07"], downstream:["B08","B09","B09"], exclude:["T1","T2"]},
+  {type:"single", upstream:["B08"], downstream:["B09","B09","B09"], exclude:["T1","T2"]},
+  {type:"single", upstream:["B02"], downstream:"B03"},
+  {type:"single", upstream:["B03"], downstream:"B04"},
+  {type:"single", upstream:["B04"], downstream:"P1"},
+  {type:"single", upstream:["B04"], downstream:"P2"},
+  {type:"dual", upstream:["P1","P2"], downstream:"B07"},
+  {type:"single", upstream:["B07"], downstream:"B08"},
+  {type:"single", upstream:["B08"], downstream:"B09"},
+//  {type:"single", upstream:["B09"], downstream:"T2"},//
+//  {type:"single", upstream:["B09"], downstream:["T1","H1","H2"], exclude:["H1","H2"]},//
+  {type:"dual", upstream:["T1","T2"], downstream:"K1"},
+  {type:"dual", upstream:["T1","T2"], downstream:"K2"},
+  {type:"dual", upstream:["T1","T2"], downstream:"S1"},
+  {type:"dual", upstream:["T1","T2"], downstream:"S2"},
+  {type:"dual", upstream:["T1","T2"], downstream:"S3"},
+  {type:"dual", upstream:["T1","T2"], downstream:"S4"},
+  {type:"enam", upstream:["S1","S2","S3","S4",], downstream:"ED"},
+  {type:"dual", upstream:["T1","T2"], downstream:"ED"},
+];
+
+const stage = document.getElementById("stage");
+const wires = document.getElementById("wires");
+const nodeEls = new Map();
+let wireEls = [];
+
+// build nodes
+for (const node of NODES){
+  const el = document.createElement("div");
+  el.className = "node";
+if (node.id === "ED") {
+  el.classList.add("end-node");   // tandai blok END
+}
+  el.style.left = node.x + "px";
+  el.style.top  = node.y + "px";
+  el.dataset.id = node.id;
+  el.innerHTML = `
+    <div class="cap">${escapeHtml(node.label)}</div>
+    <div class="card"></div>
+    <div class="mat">
+      <div class="lbl">R</div><div class="v">${node.R}</div>
+      <div class="lbl">A</div><div class="v">${node.A}</div>
+    </div>`;
+  stage.appendChild(el);
+  nodeEls.set(node.id,el);
+  el.addEventListener("click",()=>{
+    el.classList.toggle("selected");
+    evaluateVisibility();
+    markRelations(node.id);
+  });
+}
+
+// draw wires
+function drawAllWires(){
+  wires.innerHTML="";
+  wireEls=[];
+  for (const {from,to} of EDGES){
+    const a=NODES.find(n=>n.id===from);
+    const b=NODES.find(n=>n.id===to);
+    if (!a||!b) continue;
+    const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+    path.setAttribute("class","wire");
+    path.setAttribute("d",elbowPath(a.x,a.y,b.x,b.y));
+    wires.appendChild(path);
+    wireEls.push({key:from+"->"+to,el:path,from,to});
+  }
+}
+
+// path shape
+function elbowPath(x1,y1,x2,y2){
+  if (x1===1620&&y1===300&&(x2===800&&(y2===500||y2===650))){
+    return `M ${x1} ${y1} L ${x1} ${y2} L ${x2} ${y2}`;
+  }
+  if ((x1===2250&&(y1===160||y1===330))&&(x2===3000&&y2===500)){
+    return `M ${x1+70} ${y1} L 2750 ${y1} L 2750 ${y2} L ${x2-70} ${y2}`;
+  }
+  if (x1===1860&&y1===200&&x2===2500&&(y2===450||y2===590||y2===720||y2===850)){
+    return `M ${x1+70} ${y1} L 2060 ${y1} L 2060 ${y2} L ${x2-70} ${y2}`;
+  }
+  if (x1===1860&&y1===400&&x2===2250&&y2===330){
+    return `M ${x1+70} ${y1} L 2250 ${y1} L 2250 ${y2} L ${x2-70} ${y2}`;
+  }
+  const midX=(x1+x2)/2;
+  return `M ${x1+70} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2-70} ${y2}`;
+}
+
+// maps
+function buildChildMap(){
+  const m=new Map();
+  for (const {from,to} of EDGES){
+    if (!m.has(from)) m.set(from,[]);
+    m.get(from).push(to);
+  }
+  return m;
+}
+function buildParentMap(){
+  const m=new Map();
+  for (const {upstream,downstream,exclude} of GROUPS){
+    const downs=Array.isArray(downstream)?downstream:[downstream];
+    downs.forEach(to=>{
+      if (exclude&&exclude.includes(to)) return;
+      if (!m.has(to)) m.set(to,[]);
+      m.get(to).push(...upstream);
+    });
+  }
+  return m;
+}
+
+// visibility
+function evaluateVisibility(){
+  // Awalnya semua blok ditampilkan
+  for (const id of nodeEls.keys()){
+    nodeEls.get(id).classList.remove('hidden');
+  }
+
+  const toHide = new Set();
+  const childMap = buildChildMap();
+
+  const collectDownstream = (startId, exclude=[]) => {
+    const stack = [startId];
+    while (stack.length){
+      const cur = stack.pop();
+      if (toHide.has(cur) || exclude.includes(cur)) continue;
+      toHide.add(cur);
+
+      // Telusuri anak-anaknya
+      const kids = childMap.get(cur) || [];
+      for (const k of kids){
+        if (!exclude.includes(k)){
+          stack.push(k);
+        }
+      }
+    }
+  };
+
+  for (const g of GROUPS){
+    if (g.type === 'single'){
+      const uEl = nodeEls.get(g.upstream[0]);
+      if (uEl?.classList.contains('selected')){
+        const downs = Array.isArray(g.downstream) ? g.downstream : [g.downstream];
+        downs.forEach(d => collectDownstream(d, g.exclude || []));
+      }
+    }
+    else if (g.type === 'dual'){
+      const aSel = nodeEls.get(g.upstream[0])?.classList.contains('selected');
+      const bSel = nodeEls.get(g.upstream[1])?.classList.contains('selected');
+      if (aSel && bSel){
+        const downs = Array.isArray(g.downstream) ? g.downstream : [g.downstream];
+        downs.forEach(d => collectDownstream(d, g.exclude || []));
+      }
+    }
+  }
+
+  // Sembunyikan hanya yang terkumpul di toHide
+  for (const id of toHide){
+    nodeEls.get(id)?.classList.add('hidden');
+  }
+
+  refreshWireOpacity(toHide);
+}
+function refreshWireOpacity(hiddenSet){
+  wireEls.forEach(w=>w.el.setAttribute("class","wire"));
+  for (const {from,to} of EDGES){
+    if(hiddenSet.has(to)){
+      const item=wireEls.find(w=>w.key===from+"->"+to);
+      if(item) item.el.setAttribute("class","wire faint");
+    }
+  }
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+// initial
+drawAllWires();
+evaluateVisibility();
+window.addEventListener("resize",()=>{ drawAllWires(); evaluateVisibility(); });
+
+// placeholder markRelations (biar tidak error)
+function markRelations(id){
+  // nanti bisa diisi sesuai logika highlight left/right
+}
+</script>
+</body>
+</html>
